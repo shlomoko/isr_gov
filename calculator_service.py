@@ -10,9 +10,6 @@ import copy
 from progress.bar import Bar
 
 
-from party_distribution import PartyDistribution
-
-
 class CalculatorService:
     def __init__(self):
         self.successful_sum = 0
@@ -38,7 +35,7 @@ class CalculatorService:
 
     def get_possible_one_twenty(self, party_list):
         try:
-            final_options = pickle.load(open("options.p", "rb"))
+            final_options = pickle.load(open("options.pickle", "rb"))
         except (OSError, IOError) as e:
             final_options = []
             delegates_list = []
@@ -47,15 +44,15 @@ class CalculatorService:
             for option in itertools.product(*delegates_list):
                 if sum(list(option)) == 120:
                     final_options.append(list(option))
-            pickle.dump(final_options, open("options.p", "wb"))
+            pickle.dump(final_options, open("options.pickle", "wb"))
 
         self.total_options = len(final_options)
         with Bar('Processing', max=self.total_options) as bar:
             for optional_government in final_options:
-                plaus_list = [self.party_list[x.name][x.delegates] for x in optional_government]
+                all_parties, relevant_parties = self.create_parties(optional_government)
+                plaus_list = [self.party_list[x.name][x.delegates] for x in all_parties]
                 plaus = numpy.product(plaus_list)
-                parties = self.create_parties(optional_government)
-                self.find_sixty_one(parties, [], 0, True, plaus)
+                self.find_sixty_one(relevant_parties, [], 0, True, plaus)
                 bar.next()
         self.clean_coalitions()
         self.save_data()
@@ -70,18 +67,14 @@ class CalculatorService:
                       Party(SHAS, delegates[5], [MESHUTEFET, YESHATID], 32),
                       Party(YAHADUT, delegates[6], [MESHUTEFET, YESHATID], 64),
                       Party(ISRAELBEITENU, delegates[7], [MESHUTEFET, LIKUD, SHAS, YAHADUT], 128),
-                      Party(AVODA, delegates[8], [LIKUD, TZIYONUT], 256)]
-        if delegates[9] > 0:
-            party_list.append(Party(TZIYONUT, delegates[9], [MESHUTEFET, MERETZ, RAAM], 512))
-        if delegates[10] > 0:
-            party_list.append(Party(KAHOL, delegates[10], [LIKUD, MESHUTEFET], 1024))
-        if delegates[11] > 0:
-            party_list.append(Party(MERETZ, delegates[11], [LIKUD, TZIYONUT], 2048))
-        if delegates[12] > 0:
-            party_list.append(Party(ZALICHA, delegates[12], [], 4096))
-        if delegates[13] > 0:
-            party_list.append(Party(RAAM, delegates[13], [TZIYONUT, YEMINA], 8192))
-        return party_list
+                      Party(AVODA, delegates[8], [LIKUD, TZIYONUT], 256),
+                      Party(TZIYONUT, delegates[9], [MESHUTEFET, MERETZ, RAAM], 512),
+                      Party(KAHOL, delegates[10], [LIKUD, MESHUTEFET], 1024),
+                      Party(MERETZ, delegates[11], [LIKUD, TZIYONUT], 2048),
+                      Party(ZALICHA, delegates[12], [], 4096),
+                      Party(RAAM, delegates[13], [TZIYONUT, YEMINA], 8192)]
+        relevant_parties = [party for party in party_list if party.delegates > 0]
+        return party_list, relevant_parties
 
 
     def find_sixty_one(self, party_list_available: list, party_list_used: list, index: int, title_flag: bool, plausability: float):
@@ -145,9 +138,9 @@ class CalculatorService:
                 zero_counter += float(value / 10000)
                 del full_count[key]
                 continue
-            if float(value / 10000) < 0.2:
+            if float(value / 10000) < 0.1:
                 del full_count[key]
-        if zero_counter > 0.2:
+        if zero_counter > 0.1:
             full_count[0] = zero_counter
         return dict(full_count)
 
