@@ -27,12 +27,16 @@ class CalculatorService:
                            MERETZ: self.get_voting_distribution(MERETZ_SURVEY),
                            ZALICHA: self.get_voting_distribution(ZALICHA_SURVEY),
                            RAAM: self.get_voting_distribution(RAAM_SURVEY)}
+        self.no_coalition_plause = 0
+        self.yes_coalition_plause = 0
+        self.total_options_plaus = 0
         self.max_coalition_parties = []
         self.max_coalition_size = 0
         self.coalition = dict.fromkeys(range(16384), 0)
         self.coalition_plausibility = dict.fromkeys(range(16384), 0)
         self.get_possible_one_twenty(self.party_list)
 
+    # We get all of the possible combinations of party delegates and pick those that sum to 120
     def get_possible_one_twenty(self, party_list):
         try:
             final_options = pickle.load(open("options.pickle", "rb"))
@@ -52,7 +56,12 @@ class CalculatorService:
                 all_parties, relevant_parties = self.create_parties(optional_government)
                 plaus_list = [self.party_list[x.name][x.delegates] for x in all_parties]
                 plaus = numpy.product(plaus_list)
-                self.find_sixty_one(relevant_parties, [], 0, True, plaus)
+                self.total_options_plaus += plaus
+                if self.find_sixty_one(relevant_parties, [], 0, [], plaus):
+                    self.successful_sum += 1
+                    self.yes_coalition_plause += plaus
+                else:
+                    self.no_coalition_plause += plaus
                 bar.next()
         self.clean_coalitions()
         self.save_data()
@@ -64,9 +73,9 @@ class CalculatorService:
                       Party(TIKVA, delegates[2], [MESHUTEFET, LIKUD], 4),
                       Party(YEMINA, delegates[3], [MESHUTEFET, MERETZ, RAAM], 8),
                       Party(MESHUTEFET, delegates[4], [LIKUD, YEMINA, TZIYONUT, YAHADUT, SHAS], 16),
-                      Party(SHAS, delegates[5], [MESHUTEFET, YESHATID], 32),
-                      Party(YAHADUT, delegates[6], [MESHUTEFET, YESHATID], 64),
-                      Party(ISRAELBEITENU, delegates[7], [MESHUTEFET, LIKUD, SHAS, YAHADUT], 128),
+                      Party(SHAS, delegates[5], [MESHUTEFET, YESHATID, RAAM], 32),
+                      Party(YAHADUT, delegates[6], [MESHUTEFET, YESHATID, RAAM], 64),
+                      Party(ISRAELBEITENU, delegates[7], [SHAS, YAHADUT], 128),
                       Party(AVODA, delegates[8], [LIKUD, TZIYONUT], 256),
                       Party(TZIYONUT, delegates[9], [MESHUTEFET, MERETZ, RAAM], 512),
                       Party(KAHOL, delegates[10], [LIKUD, MESHUTEFET], 1024),
@@ -77,12 +86,11 @@ class CalculatorService:
         return party_list, relevant_parties
 
 
-    def find_sixty_one(self, party_list_available: list, party_list_used: list, index: int, title_flag: bool, plausability: float):
+    def find_sixty_one(self, party_list_available: list, party_list_used: list, index: int, possible_coalition_flag: list, plausability: float):
         sum_parties = sum([x.delegates for x in party_list_used])
         if sum_parties > 60:
-            if title_flag:
-                self.successful_sum += 1
-                title_flag = False
+            if not possible_coalition_flag:
+                possible_coalition_flag.append(True)
             if sum_parties > self.max_coalition_size:
                 self.max_coalition_size = sum_parties
                 self.max_coalition_parties = copy.deepcopy(party_list_used)
@@ -93,27 +101,30 @@ class CalculatorService:
         for i in range(index, len(party_list_available)):
             if self.possible_addition(party_list_available[i], party_list_used):
                 party_list_used.append(party_list_available[i])
-                self.find_sixty_one(party_list_available, party_list_used, i + 1, title_flag, plausability)
+                self.find_sixty_one(party_list_available, party_list_used, i + 1, possible_coalition_flag, plausability)
                 party_list_used.pop(-1)
-        return
+        return len(possible_coalition_flag) > 0
 
+    # We try to asses if a party is willing to sit with another party
     def possible_addition(self, party_checked, party_list_used: list):
         for p in party_list_used:
             if (party_checked.name in p.anti) or (p.name in party_checked.anti):
                 return False
         return True
 
+    # Todo: try to figure out split numbers
     def possible_split(self, party: Party):
         delegates = party.delegates
         return [round(0.4 * delegates), round(0.6 * delegates)]
 
-
+    # remove options of coalition that did not workout.
     def clean_coalitions(self):
         for key, value in list(self.coalition.items()):
             if value == 0:
                 del self.coalition[key]
                 del self.coalition_plausibility[key]
 
+    # unhashing
     def get_parties_from_binary(self, num: int):
         parties = [LIKUD, YESHATID, TIKVA, YEMINA, MESHUTEFET, SHAS, YAHADUT, ISRAELBEITENU, AVODA, TZIYONUT, KAHOL,
                    MERETZ, ZALICHA, RAAM]
@@ -132,20 +143,26 @@ class CalculatorService:
         round_dist = [round(x) for x in distribution]
         full_count = Counter(round_dist)
         zero_counter = 0
+        sum_deleted = 0
         for key, value in list(full_count.items()):
-            full_count[key] = float(value / 10000)
+            percent_value = float(value/100000)
+            full_count[key] = percent_value
             if key < 4:
-                zero_counter += float(value / 10000)
+                zero_counter += percent_value
                 del full_count[key]
                 continue
-            if float(value / 10000) < 0.1:
+            if percent_value < 0.01:
+                sum_deleted += percent_value
                 del full_count[key]
-        if zero_counter > 0.1:
+        if zero_counter > 0.01:
             full_count[0] = zero_counter
+        # normalizing after deletions
+        for key, value in list(full_count.items()):
+            full_count[key] = 10*(value/(1-sum_deleted))
         return dict(full_count)
 
     def save_data(self):
-        with open('coalition1.csv', 'w', newline='') as file:
+        with open('coalition.csv', 'w', newline='') as file:
             writer = csv.writer(file)
             largest_coalition = ["Largest Coalition Parties"]
             largest_coalition.extend([x.name for x in self.max_coalition_parties])
@@ -156,8 +173,11 @@ class CalculatorService:
             writer.writerow(largest_coalition)
             writer.writerow(["Successful Vote", self.successful_sum])
             writer.writerow(["Total Options Amount", self.total_options])
+            writer.writerow(["Yes Coalition Chance", self.yes_coalition_plause / self.total_options_plaus])
+            writer.writerow(["No Coalition Chance", self.no_coalition_plause / self.total_options_plaus])
             for key in self.coalition.keys():
-                line = [self.coalition[key], self.coalition_plausibility[key]]
+                coalition_plausability = self.coalition_plausibility[key] / self.total_options_plaus
+                line = [self.coalition[key], coalition_plausability * 100]
                 line.extend(self.get_parties_from_binary(key))
                 writer.writerow(line)
 
