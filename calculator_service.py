@@ -69,9 +69,9 @@ class CalculatorService:
 
     def create_parties(self, delegates):
         party_list = [Party(LIKUD, delegates[0], [MESHUTEFET], 1),
-                      Party(YESHATID, delegates[1], [MESHUTEFET, LIKUD, SHAS, YAHADUT], 2),
+                      Party(YESHATID, delegates[1], [LIKUD, SHAS, YAHADUT, TZIYONUT], 2),
                       Party(TIKVA, delegates[2], [MESHUTEFET, LIKUD], 4),
-                      Party(YEMINA, delegates[3], [MESHUTEFET, MERETZ, RAAM], 8),
+                      Party(YEMINA, delegates[3], [MESHUTEFET, RAAM], 8),
                       Party(MESHUTEFET, delegates[4], [LIKUD, YEMINA, TZIYONUT, YAHADUT, SHAS], 16),
                       Party(SHAS, delegates[5], [MESHUTEFET, YESHATID, RAAM], 32),
                       Party(YAHADUT, delegates[6], [MESHUTEFET, YESHATID, RAAM], 64),
@@ -83,6 +83,9 @@ class CalculatorService:
                       Party(ZALICHA, delegates[12], [], 4096),
                       Party(RAAM, delegates[13], [TZIYONUT, YEMINA], 8192)]
         relevant_parties = [party for party in party_list if party.delegates > 0]
+        # if Isbak in Avoda - Bennet will not sit with them
+        if party_list[8].delegates > 6:
+            party_list[3].anti.append(AVODA)
         return party_list, relevant_parties
 
 
