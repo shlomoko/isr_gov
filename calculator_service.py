@@ -92,8 +92,10 @@ class CalculatorService:
     def find_sixty_one(self, party_list_available: list, party_list_used: list, index: int, possible_coalition_flag: list, plausability: float):
         sum_parties = sum([x.delegates for x in party_list_used])
         if sum_parties > 60:
-            if not possible_coalition_flag:
-                possible_coalition_flag.append(True)
+            if any(x.hash == 8 for x in party_list_used) and any(x.hash == 1 for x in party_list_used):
+                possible_coalition_flag.append(1)
+            if any(x.hash == 8 for x in party_list_used) and any(x.hash == 2 for x in party_list_used):
+                possible_coalition_flag.append(2)
             if sum_parties > self.max_coalition_size:
                 self.max_coalition_size = sum_parties
                 self.max_coalition_parties = copy.deepcopy(party_list_used)
@@ -106,7 +108,7 @@ class CalculatorService:
                 party_list_used.append(party_list_available[i])
                 self.find_sixty_one(party_list_available, party_list_used, i + 1, possible_coalition_flag, plausability)
                 party_list_used.pop(-1)
-        return len(possible_coalition_flag) > 0
+        return (1 in possible_coalition_flag) and (2 in possible_coalition_flag)
 
     # We try to asses if a party is willing to sit with another party
     def possible_addition(self, party_checked, party_list_used: list):
